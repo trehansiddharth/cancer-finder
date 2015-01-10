@@ -12,8 +12,65 @@ def readImageGrayscale8Bit(imgPath):
 def outputImage(imgPath, img):
     cv2.imwrite(imgPath, img)
 
-def polarize(img, (x, y)):
-    raise NotImplementedError
+def integerDistance((x1, y1), (x2, y2)):
+    return int(floor(sqrt((x1 - x2)**2 + (y1 - y2)**2)))
+
+def polarizeAverage(img, p):
+    w, h = img.shape
+    corners = [(0, 0), (w, 0), (0, h), (w, h)]
+    maxdistance = max(map(lambda q: integerDistance(p, q), corners))
+    items = np.zeros(maxdistance)
+    result = np.zeros(maxdistance)
+    for index, value in np.ndenumerate(img):
+        distance = integerDistance(index, p)
+        items[distance] += 1
+        result[distance] += value
+    for index, value in np.ndenumerate(result):
+        b = np.nan
+        if items[index] > 0:
+            b = int(float(result[index]) / float(items[index]))
+        result[distance] = b
+    return result
+
+def polarizeVariance(img, p):
+    w, h = img.shape
+    corners = [(0, 0), (w, 0), (0, h), (w, h)]
+    maxdistance = max(map(lambda q: integerDistance(p, q), corners))
+    items = np.zeros(maxdistance)
+    averages = polarizeAverage(img, p)
+    variances = np.zeros(maxdistance)
+    for index, value in np.ndenumerate(img):
+        distance = integerDistance(index, p)
+        error = (value - averages[distance])**2
+        items[distance] += 1
+        variances[distance] += error
+    for index, value in np.ndenumerate(variances):
+        b = np.nan
+        if items[index] > 0:
+            b = int(float(variances[index]) / float(items[index]))
+        variances[distance] = b
+    return variances
+
+def applyKernel(array, x, kernel):
+    size = len(kernel)
+    if size % 2 == 0:
+        raise IndexError
+    start = x - (size - 1) / 2
+    end = x + (size - 1) / 2
+    result = 0
+    for i in range(start, end + 1):
+        if i >= 0 and i < array.shape[0]:
+            result += kernel[i - start] * array[i]
+    return result
+
+def convolve(array, kernel):
+    result = np.zeros(array.shape)
+    for i in range(0, array.shape[0]):
+        result[i] = applyKernel(array, i, kernel)
+    return result
+
+def derivative(array, kernel=[-0.5, 0.0, +0.5]):
+    return convolve(array, kernel)
 
 def findBeads(inputPath, outputPath):
     img = readImageGrayscale8Bit(inputPath)
